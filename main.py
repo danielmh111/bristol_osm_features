@@ -1,64 +1,46 @@
 import requests
-
-overpass_url = "https://overpass-api.de/api/interpreter"
-
-test_query_1 = """
-[out:json][date:"2019-01-01T00:00:00Z"];
-(
-    node["amenity"](51.4,-2.7,51.5,-2.5);
-    way["amenity"](51.4,-2.7,51.5,-2.5);
-);
-out center;
-"""
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+from rich.pretty import pprint
 
 
-test_query_2 = """
-[out:json];
-area["name"="Bristol"]["admin_level"="6"]->.bristol;
-(
-    node["amenity"="restaurant"](area.bristol);
-    node["amenity"="cafe"](area.bristol);
-    node["amenity"="pub"](area.bristol);
-    way["amenity"="restaurant"](area.bristol);
-    way["amenity"="cafe"](area.bristol);
-    way["amenity"="pub"](area.bristol);
-);
-out center;
-"""
-
-
-test_query_3 = """
-[out:json];
-area["name"="Bristol"]["admin_level"="6"]->.bristol;
-(
-    node["amenity"="restaurant"](area.bristol);
-    node["amenity"="cafe"](area.bristol);
-    node["amenity"="pub"](area.bristol);
-    way["amenity"="restaurant"](area.bristol);
-    way["amenity"="cafe"](area.bristol);
-    way["amenity"="pub"](area.bristol);
-);
-"""
-
-test_query_4 = """
+def make_request():
+    overpass_url = "https://overpass-api.de/api/interpreter"
+    bristol_data_query = """
 [out:json];
 area["ISO3166-2"="GB-BST"]->.bristol;
 (
     node["amenity"](area.bristol);
     way["amenity"](area.bristol);
+    node["shop"](area.bristol);
+    way["shop"](area.bristol);
+    node["landuse"](area.bristol);
+    way["landuse"](area.bristol);
+    node["highways"](area.bristol);
+    way["highways"](area.bristol);
 );
 out;
 """
 
+    retry_logic = Retry(
+        total=5,
+        status_forcelist=[429, 500, 503, 504],
+        backoff_factor=1,
+        respect_retry_after_header=True,
+    )
+
+    with requests.Session() as session:
+        session.mount("https://", HTTPAdapter(max_retries=retry_logic))
+        response = session.get(overpass_url, params={"data": bristol_data_query})
+
+    response.raise_for_status()
+
+    return response.json()
+
 
 def main():
-    response = requests.get(
-        overpass_url, 
-        params={'data': test_query_4}
-    )
-    print(response.status_code)
-    print(response.text)
-    # print(response.json())
+    data = make_request()
+    pprint(data)
 
 
 if __name__ == "__main__":
