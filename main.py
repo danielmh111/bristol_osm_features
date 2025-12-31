@@ -2,6 +2,30 @@ import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from rich.pretty import pprint
+from project_paths import paths
+import json
+from pathlib import Path
+from geopandas import GeoDataFrame
+from shapely.geometry import Polygon
+
+LOCATIONS = paths.locations
+DATA = paths.data
+
+
+def find_lsoas() -> list[str]:
+    files = LOCATIONS.iterdir()
+    names = [file.parts[-1].removesuffix(".geojson") for file in files]
+    return names
+
+
+def get_polygons(polygon_file: Path) -> Polygon:
+    with open(LOCATIONS / f"{polygon_file}.geojson") as file:
+        polygon = json.load(file)
+
+    coords = polygon["coordinates"][0]
+
+    geometry = Polygon(coords)
+    return geometry
 
 
 def make_request():
@@ -39,8 +63,14 @@ out;
 
 
 def main():
-    data = make_request()
-    pprint(data)
+    lsoa_files = find_lsoas()
+    lsoa_polys = [get_polygons(Path(lsoa_file)) for lsoa_file in lsoa_files]
+    lsoa_gdf = GeoDataFrame({"lsoa_code": lsoa_files, "geometry": lsoa_polys})
+
+    print(lsoa_gdf)
+
+    # data = make_request()
+    # pprint(data)
 
 
 if __name__ == "__main__":
