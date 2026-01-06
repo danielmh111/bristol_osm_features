@@ -6,8 +6,7 @@ from project_paths import paths
 import json
 from pathlib import Path
 from geopandas import GeoDataFrame
-from shapely.geometry import Polygon
-from functools import cache
+from shapely.geometry import Polygon, Point, LineString
 from collections import Counter
 from itertools import chain
 import pandas as pd
@@ -32,7 +31,6 @@ def get_polygons(polygon_file: Path) -> Polygon:
     return geometry
 
 
-@cache
 def fetch_bristol_data():
     overpass_url = "https://overpass-api.de/api/interpreter"
     bristol_data_query = """
@@ -180,15 +178,64 @@ def main():
     polygon_data = [
         element
         for element in map_elements
-        if element.get("type") == "way" and "highway" not in element.get("tags").keys()
+        if element.get("type") == "way"
+        and "highway" not in element.get("tags", {}).keys()
+        and len(element.get("geometry", [])) >= 4
     ]
     line_data = [
-        element for element in map_elements if "highway" in element.get("tags").keys()
+        element
+        for element in map_elements
+        if element.get("type") == "way" and "highway" in element.get("tags", {}).keys()
     ]
 
-    print(len(point_data))
-    print(len(polygon_data))
-    print(len(line_data))
+    invalid_polygons = [
+        element
+        for element in map_elements
+        if element.get("type") == "way"
+        and "highway" not in element.get("tags", {}).keys()
+        and len(element.get("geometry", [])) < 4
+    ]  # ? maybe have to convert these to nodes? they're all benches, probably fine to exclude
+
+    # print(invalid_polygons)
+
+    points_gdf = GeoDataFrame(
+        data=point_data,
+        geometry=[Point(element["lon"], element["lat"]) for element in point_data],
+        crs="EPSG:4326",
+    )
+    points_gdf = points_gdf.to_crs(epsg=27700)
+
+    polygons_gdf = GeoDataFrame(
+        data=polygon_data,
+        geometry=[
+            Polygon(
+                [
+                    (geometry.get("lat"), geometry.get("lon"))
+                    for geometry in element.get("geometry", {})
+                ]
+            )
+            for element in polygon_data
+        ],
+    )
+    polygons_gdf = polygons_gdf.to_crs(epsg=27700)
+
+    lines_gdf = GeoDataFrame(
+        data=line_data,
+        geometry=[
+            LineString(
+                [
+                    (geometry.get("lat"), geometry.get("lon"))
+                    for geometry in element.get("geometry", {})
+                ]
+            )
+            for element in line_data
+        ],
+    )
+    lines_gdf = lines_gdf.to_crs(epsg=27700)
+
+    print(points_gdf)
+    print(polygons_gdf)
+    print(lines_gdf)
 
 
 if __name__ == "__main__":
