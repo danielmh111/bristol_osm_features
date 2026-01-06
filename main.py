@@ -66,6 +66,47 @@ out geom;
     return response.json()
 
 
+# count of ammenities
+
+
+# distance to nearest...
+
+
+# ratio of ... to ...
+
+
+# road layout
+
+
+# landuses
+
+
+# streetlighting
+
+
+# total points of interest
+
+
+# variaty of points of interest
+
+
+# for anything counting items, we want to define buffers of different distances
+# e.g. 250 meters, 500 meters, 1km, 5km
+# could be done to represent walking distance, short trip away, long trip away.
+
+# i wont try and guess the most appropriate distance for each feature yet, will produce lots of different ones and come onto feature selection and dimensionality reduction through some experiments later
+
+# also, for lots of these there will be some variation in what counts. e.g. count of ammenities can be broken down into retail, hospitality etc.
+# these could be weighted or different features could be produced for each category
+
+# this means that there will be lots of combinations of the different variations on each feature, possibly leading to over 500 differnt features
+# in some cases the different variants could be produced by the same function with different parameters e.g. distance buffer could be an argument
+# but im keen to make sure i dont write hundreds of functions that will be impossible to read through - factory pattern possible?
+
+# basically, for each feature type we want there to be one computation (code) and lots of parameters (data). This way, we could write a small number of flexible functions, then write out a config object.
+# ill start by just writing some pure functions for extracting examples of the features to be extracted
+
+
 def main():
     lsoa_files = find_lsoas()
     lsoa_polys = [get_polygons(Path(lsoa_file)) for lsoa_file in lsoa_files]
