@@ -111,23 +111,35 @@ def main():
     lsoa_files = find_lsoas()
     lsoa_polys = [get_polygons(Path(lsoa_file)) for lsoa_file in lsoa_files]
     lsoa_gdf = GeoDataFrame({"lsoa_code": lsoa_files, "geometry": lsoa_polys})
+    lsoa_gdf = lsoa_gdf.set_crs(epsg=4326)  # coords start in lat/long degrees
+    lsoa_gdf = lsoa_gdf.to_crs(epsg=27700)  # convert to metric coords
+    lsoa_gdf = lsoa_gdf.assign(
+        **{
+            f"geom_{distance}": lsoa_gdf.geometry.buffer(distance)
+            for distance in [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
+        }
+    )  # create geometries of lsoas extended by different distances in meters
 
-    data = fetch_bristol_data()
-    map_elements = data["elements"]
+    print(lsoa_gdf)
 
-    point_data = [element for element in map_elements if element.get("type") == "node"]
-    polygon_data = [
-        element
-        for element in map_elements
-        if element.get("type") == "way" and "highway" not in element.get("tags").keys()
-    ]
-    line_data = [
-        element for element in map_elements if "highway" in element.get("tags").keys()
-    ]
+    lsoa_gdf.to_csv("test.csv")
 
-    print(len(point_data))
-    print(len(polygon_data))
-    print(len(line_data))
+    # data = fetch_bristol_data()
+    # map_elements = data["elements"]
+
+    # point_data = [element for element in map_elements if element.get("type") == "node"]
+    # polygon_data = [
+    #     element
+    #     for element in map_elements
+    #     if element.get("type") == "way" and "highway" not in element.get("tags").keys()
+    # ]
+    # line_data = [
+    #     element for element in map_elements if "highway" in element.get("tags").keys()
+    # ]
+
+    # print(len(point_data))
+    # print(len(polygon_data))
+    # print(len(line_data))
 
 
 if __name__ == "__main__":
