@@ -10,6 +10,7 @@ from shapely.geometry import Polygon
 from functools import cache
 from collections import Counter
 from itertools import chain
+import pandas as pd
 
 LOCATIONS = paths.locations
 DATA = paths.data
@@ -107,6 +108,58 @@ out geom;
 # ill start by just writing some pure functions for extracting examples of the features to be extracted
 
 
+def count_ammenities(
+    feature_frame: GeoDataFrame,
+    point_osm_data: list,
+    ammenities: list,
+    distance: int,
+) -> pd.Series: ...
+
+
+def find_nearest_poi(
+    feature_frame: GeoDataFrame,
+    point_osm_data: list,
+    poi: str,
+    distance: int,
+) -> pd.Series: ...
+
+
+def calculate_ratio_of_elements(
+    feature_frame: GeoDataFrame,
+    point_osm_data: list,
+    elements: tuple[str, str],
+    distance: int,
+) -> pd.Series: ...
+
+
+def find_landuse_share(
+    feature_frame: GeoDataFrame,
+    polygon_osm_data: list,
+    distance: int,
+) -> pd.Series: ...
+
+
+def find_streetlit_path_percent(
+    feature_frame: GeoDataFrame,
+    line_osm_data: list,
+    distance: int,
+) -> pd.Series: ...
+
+
+def calculate_poi_diversity(
+    feature_frame: GeoDataFrame,
+    point_osm_data: list,
+    distance: int,
+) -> pd.Series: ...
+
+
+def find_total_pois(
+    feature_frame: GeoDataFrame,
+    point_osm_data: list,
+    distance: int,
+) -> pd.Series: ...
+
+
 def main():
     lsoa_files = find_lsoas()
     lsoa_polys = [get_polygons(Path(lsoa_file)) for lsoa_file in lsoa_files]
@@ -120,26 +173,22 @@ def main():
         }
     )  # create geometries of lsoas extended by different distances in meters
 
-    print(lsoa_gdf)
+    data = fetch_bristol_data()
+    map_elements = data["elements"]
 
-    lsoa_gdf.to_csv("test.csv")
+    point_data = [element for element in map_elements if element.get("type") == "node"]
+    polygon_data = [
+        element
+        for element in map_elements
+        if element.get("type") == "way" and "highway" not in element.get("tags").keys()
+    ]
+    line_data = [
+        element for element in map_elements if "highway" in element.get("tags").keys()
+    ]
 
-    # data = fetch_bristol_data()
-    # map_elements = data["elements"]
-
-    # point_data = [element for element in map_elements if element.get("type") == "node"]
-    # polygon_data = [
-    #     element
-    #     for element in map_elements
-    #     if element.get("type") == "way" and "highway" not in element.get("tags").keys()
-    # ]
-    # line_data = [
-    #     element for element in map_elements if "highway" in element.get("tags").keys()
-    # ]
-
-    # print(len(point_data))
-    # print(len(polygon_data))
-    # print(len(line_data))
+    print(len(point_data))
+    print(len(polygon_data))
+    print(len(line_data))
 
 
 if __name__ == "__main__":
