@@ -7,6 +7,9 @@ import json
 from pathlib import Path
 from geopandas import GeoDataFrame
 from shapely.geometry import Polygon
+from functools import cache
+from collections import Counter
+from itertools import chain
 
 LOCATIONS = paths.locations
 DATA = paths.data
@@ -28,7 +31,8 @@ def get_polygons(polygon_file: Path) -> Polygon:
     return geometry
 
 
-def make_request():
+@cache
+def fetch_bristol_data():
     overpass_url = "https://overpass-api.de/api/interpreter"
     bristol_data_query = """
 [out:json];
@@ -40,10 +44,10 @@ area["ISO3166-2"="GB-BST"]->.bristol;
     way["shop"](area.bristol);
     node["landuse"](area.bristol);
     way["landuse"](area.bristol);
-    node["highways"](area.bristol);
-    way["highways"](area.bristol);
+    node["highway"](area.bristol);
+    way["highway"](area.bristol);
 );
-out;
+out geom;
 """
 
     retry_logic = Retry(
@@ -67,10 +71,22 @@ def main():
     lsoa_polys = [get_polygons(Path(lsoa_file)) for lsoa_file in lsoa_files]
     lsoa_gdf = GeoDataFrame({"lsoa_code": lsoa_files, "geometry": lsoa_polys})
 
-    print(lsoa_gdf)
+    data = fetch_bristol_data()
+    map_elements = data["elements"]
 
-    # data = make_request()
-    # pprint(data)
+    point_data = [element for element in map_elements if element.get("type") == "node"]
+    polygon_data = [
+        element
+        for element in map_elements
+        if element.get("type") == "way" and "highway" not in element.get("tags").keys()
+    ]
+    line_data = [
+        element for element in map_elements if "highway" in element.get("tags").keys()
+    ]
+
+    print(len(point_data))
+    print(len(polygon_data))
+    print(len(line_data))
 
 
 if __name__ == "__main__":
