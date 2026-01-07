@@ -158,21 +158,10 @@ def find_total_pois(
 ) -> pd.Series: ...
 
 
-def main():
-    lsoa_files = find_lsoas()
-    lsoa_polys = [get_polygons(Path(lsoa_file)) for lsoa_file in lsoa_files]
-    lsoa_gdf = GeoDataFrame({"lsoa_code": lsoa_files, "geometry": lsoa_polys})
-    lsoa_gdf = lsoa_gdf.set_crs(epsg=4326)  # coords start in lat/long degrees
-    lsoa_gdf = lsoa_gdf.to_crs(epsg=27700)  # convert to metric coords
-    lsoa_gdf = lsoa_gdf.assign(
-        **{
-            f"geom_{distance}": lsoa_gdf.geometry.buffer(distance)
-            for distance in [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
-        }
-    )  # create geometries of lsoas extended by different distances in meters
-
-    data = fetch_bristol_data()
-    map_elements = data["elements"]
+def format_osm_geodataframes(
+    map_elements: list,
+) -> tuple[GeoDataFrame, GeoDataFrame, GeoDataFrame]:
+    # seperate out map elements of different geometries
 
     point_data = [element for element in map_elements if element.get("type") == "node"]
     polygon_data = [
@@ -196,7 +185,8 @@ def main():
         and len(element.get("geometry", [])) < 4
     ]  # ? maybe have to convert these to nodes? they're all benches, probably fine to exclude
 
-    # print(invalid_polygons)
+    # create a geodataframe for each geometry type.
+    # specify the lon/lat degrees coord system when creating, then convert each to metric to match the lsoa dataframe format
 
     points_gdf = GeoDataFrame(
         data=point_data,
@@ -210,8 +200,8 @@ def main():
         geometry=[
             Polygon(
                 [
-                    (geometry.get("lat"), geometry.get("lon"))
-                    for geometry in element.get("geometry", {})
+                    (node.get("lat"), node.get("lon"))
+                    for node in element.get("geometry", {})
                 ]
             )
             for element in polygon_data
@@ -225,8 +215,8 @@ def main():
         geometry=[
             LineString(
                 [
-                    (geometry.get("lat"), geometry.get("lon"))
-                    for geometry in element.get("geometry", {})
+                    (node.get("lat"), node.get("lon"))
+                    for node in element.get("geometry", {})
                 ]
             )
             for element in line_data
@@ -235,9 +225,32 @@ def main():
     )
     lines_gdf = lines_gdf.to_crs(epsg=27700)
 
-    print(points_gdf)
-    print(polygons_gdf)
-    print(lines_gdf)
+    return points_gdf, polygons_gdf, lines_gdf
+
+
+def main():
+    lsoa_files = find_lsoas()
+    lsoa_polys = [get_polygons(Path(lsoa_file)) for lsoa_file in lsoa_files]
+    lsoa_gdf = GeoDataFrame({"lsoa_code": lsoa_files, "geometry": lsoa_polys})
+    lsoa_gdf = lsoa_gdf.set_crs(epsg=4326)  # coords start in lat/long degrees
+    lsoa_gdf = lsoa_gdf.to_crs(epsg=27700)  # convert to metric coords
+    lsoa_gdf = lsoa_gdf.assign(
+        **{
+            f"geom_{distance}": lsoa_gdf.geometry.buffer(distance)
+            for distance in [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
+        }
+    )  # create geometries of lsoas extended by different distances in meters
+
+    data = fetch_bristol_data()
+    map_elements = data["elements"]
+
+    osm_points_gdf, osm_polygons_gdf, osm_lines_gdf = format_osm_geodataframes(
+        map_elements=map_elements
+    )
+
+    print(osm_points_gdf)
+    print(osm_polygons_gdf)
+    print(osm_lines_gdf)
 
 
 if __name__ == "__main__":
