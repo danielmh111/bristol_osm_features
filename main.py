@@ -216,6 +216,7 @@ def main():
             )
             for element in polygon_data
         ],
+        crs="EPSG:4326",
     )
     polygons_gdf = polygons_gdf.to_crs(epsg=27700)
 
@@ -230,6 +231,7 @@ def main():
             )
             for element in line_data
         ],
+        crs="EPSG:4326",
     )
     lines_gdf = lines_gdf.to_crs(epsg=27700)
 
