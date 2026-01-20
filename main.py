@@ -10,6 +10,7 @@ from shapely.geometry import Polygon, Point, LineString
 from collections import Counter
 from itertools import chain
 import pandas as pd
+from typing import Iterable
 
 LOCATIONS = paths.locations
 DATA = paths.data
@@ -109,9 +110,16 @@ out geom;
 def count_ammenities(
     feature_frame: GeoDataFrame,
     point_osm_data: list,
-    ammenities: list,
+    ammenities: Iterable,
     distance: int,
-) -> pd.Series: ...
+) -> pd.Series:
+    _ammenities = {
+        ammenity for ammenity in ammenities
+    }  # convert to set to use membership methods
+
+    lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]]
+
+    return pd.Series(...)
 
 
 def find_nearest_poi(
@@ -241,16 +249,18 @@ def main():
         }
     )  # create geometries of lsoas extended by different distances in meters
 
-    data = fetch_bristol_data()
-    map_elements = data["elements"]
+    print(lsoa_gdf)
 
-    osm_points_gdf, osm_polygons_gdf, osm_lines_gdf = format_osm_geodataframes(
-        map_elements=map_elements
-    )
+    # data = fetch_bristol_data()
+    # map_elements = data["elements"]
 
-    print(osm_points_gdf)
-    print(osm_polygons_gdf)
-    print(osm_lines_gdf)
+    # osm_points_gdf, osm_polygons_gdf, osm_lines_gdf = format_osm_geodataframes(
+    #     map_elements=map_elements
+    # )
+
+    # print(osm_points_gdf)
+    # print(osm_polygons_gdf)
+    # print(osm_lines_gdf)
 
 
 if __name__ == "__main__":
