@@ -10,7 +10,11 @@ from shapely.geometry import Polygon, Point, LineString
 from collections import Counter
 from itertools import chain
 import pandas as pd
-from typing import Iterable
+from typing import Iterable, Any
+from datetime import date
+from icecream import ic
+
+Json = dict | Iterable
 
 LOCATIONS = paths.locations
 DATA = paths.data
@@ -32,7 +36,13 @@ def get_polygons(polygon_file: Path) -> Polygon:
     return geometry
 
 
-def fetch_bristol_data():
+def fetch_bristol_data() -> dict[Iterable, Any]:
+    cache_path = DATA / f"response_{date.today().strftime('%Y-%m-%d')}.json"
+
+    if cache_path.exists():
+        with open(cache_path, "r") as f:
+            return json.loads(f.read())
+
     overpass_url = "https://overpass-api.de/api/interpreter"
     bristol_data_query = """
 [out:json];
@@ -62,6 +72,9 @@ out geom;
         response = session.get(overpass_url, params={"data": bristol_data_query})
 
     response.raise_for_status()
+
+    with open(cache_path, "x") as f:
+        f.write(json.dumps(response.json()))
 
     return response.json()
 
@@ -109,7 +122,7 @@ out geom;
 
 def count_ammenities(
     feature_frame: GeoDataFrame,
-    point_osm_data: list,
+    point_osm_data: GeoDataFrame,
     ammenities: Iterable,
     distance: int,
 ) -> pd.Series:
@@ -118,8 +131,17 @@ def count_ammenities(
     }  # convert to set to use membership methods
 
     lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]]
+    lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
 
-    return pd.Series(...)
+    joined_gdf = point_osm_data.sjoin(lsoa_gdf, how="inner", predicate="within")
+
+    joined_gdf["helper_column"] = joined_gdf["tags"].apply(
+        lambda x: not x.keys().isdisjoint({"amenity"})
+    )
+    filtered_gdf = joined_gdf[joined_gdf["helper_column"]]
+
+    gdf_agg = filtered_gdf[["lsoa_code", "id"]].groupby(["lsoa_code"]).count()
+    return gdf_agg["id"]
 
 
 def find_nearest_poi(
@@ -249,18 +271,25 @@ def main():
         }
     )  # create geometries of lsoas extended by different distances in meters
 
-    print(lsoa_gdf)
+    print(lsoa_gdf.head())
 
-    # data = fetch_bristol_data()
-    # map_elements = data["elements"]
+    data = fetch_bristol_data()
+    map_elements = data["elements"]
 
-    # osm_points_gdf, osm_polygons_gdf, osm_lines_gdf = format_osm_geodataframes(
-    #     map_elements=map_elements
-    # )
+    osm_points_gdf, osm_polygons_gdf, osm_lines_gdf = format_osm_geodataframes(
+        map_elements=map_elements
+    )
 
-    # print(osm_points_gdf)
+    print(osm_points_gdf)
     # print(osm_polygons_gdf)
     # print(osm_lines_gdf)
+
+    count_ammenities(
+        feature_frame=lsoa_gdf,
+        point_osm_data=osm_points_gdf,
+        ammenities=["blah"],
+        distance=500,
+    )
 
 
 if __name__ == "__main__":
