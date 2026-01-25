@@ -18,6 +18,7 @@ Json = dict | Iterable
 
 LOCATIONS = paths.locations
 DATA = paths.data
+AMENITY_INFO_DIR = paths.amenities
 
 
 def find_lsoas() -> list[str]:
@@ -310,7 +311,7 @@ def main():
     # pprint(sorted(amenity_types))
     # print(len(amenity_types))
 
-    # with open(DATA / "all_amenities.json", "w+") as f:
+    # with open(AMENITY_INFO_DIR / "all_amenities.json", "w+") as f:
     #     f.write(json.dumps(list(amenity_types)))
 
     # with 133 amenities, we will have to come up with some intentionally designed groupings
@@ -318,7 +319,7 @@ def main():
     # i.e. all combinations of amenites is sum( c(amenities, r)) for r = 1 to 133
     # then multiply this by how many buffer distances to use
 
-    with open(DATA / "amenity_groups.json", "r") as f:
+    with open(AMENITY_INFO_DIR / "amenity_groups.json", "r") as f:
         amenity_groups: dict = json.load(f)
 
     # we probably want to think about the useful distances to use for each group and include this in the file so it becomes a full config
