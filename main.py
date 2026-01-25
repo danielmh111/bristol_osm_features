@@ -131,34 +131,19 @@ def count_ammenities(
         ammenity for ammenity in ammenities
     }  # convert to set to use membership methods
 
-    ic(_ammenities)
-
     lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]]
     lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
 
     joined_gdf = point_osm_data.sjoin(lsoa_gdf, how="inner", predicate="within")
-
-    ic("joined", joined_gdf.shape, joined_gdf.columns)
-
     joined_gdf["helper_column"] = joined_gdf["tags"].apply(
         lambda x: (
             (not x.keys().isdisjoint({"amenity"}))
             and (x.get("amenity", "") in _ammenities)
         )
     )
-    ic("helper", joined_gdf.shape, joined_gdf.columns)
-    ic(
-        "helper stats",
-        joined_gdf[["helper_column", "id"]].groupby("helper_column").count(),
-    )
 
     filtered_gdf = joined_gdf[joined_gdf["helper_column"]]
-
-    ic("filtered", filtered_gdf.shape)
-
     gdf_agg = filtered_gdf[["lsoa_code", "id"]].groupby(["lsoa_code"]).count()
-
-    ic("aggregated", gdf_agg.head())
 
     return gdf_agg["id"]
 
@@ -290,8 +275,6 @@ def main():
         }
     )  # create geometries of lsoas extended by different distances in meters
 
-    print(lsoa_gdf.head())
-
     data = fetch_bristol_data()
     map_elements = data["elements"]
 
@@ -299,26 +282,13 @@ def main():
         map_elements=map_elements
     )
 
-    print(osm_points_gdf)
-    # print(osm_polygons_gdf)
-    # print(osm_lines_gdf)
-
-    amenity_types = {
-        el.get("tags", {}).get("amenity")
-        for el in map_elements
-        if el.get("tags", {}).get("amenity")
-    }
-    # pprint(sorted(amenity_types))
-    # print(len(amenity_types))
-
-    # with open(AMENITY_INFO_DIR / "all_amenities.json", "w+") as f:
-    #     f.write(json.dumps(list(amenity_types)))
-
     # with 133 amenities, we will have to come up with some intentionally designed groupings
     # otherwise could end up with literally trillions and trillions of features
     # i.e. all combinations of amenites is sum( c(amenities, r)) for r = 1 to 133
     # then multiply this by how many buffer distances to use
-
+    # designed amentity groups are in a json file.
+    # edit the file to try different groupings. s
+    # ensitivity testing to grouping probably necessary at some point
     with open(AMENITY_INFO_DIR / "amenity_groups.json", "r") as f:
         amenity_groups: dict = json.load(f)
 
@@ -335,13 +305,6 @@ def main():
         for group_name, group in amenity_groups.items()
         for buffer_distance in [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
     }
-
-    # count_ammenities(
-    #     feature_frame=lsoa_gdf,
-    #     point_osm_data=osm_points_gdf,
-    #     ammenities=["post_box"],
-    #     distance=500,
-    # )
 
     pprint(count_ammenities_features)
 
