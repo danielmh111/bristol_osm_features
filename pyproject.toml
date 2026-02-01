@@ -16,4 +16,4 @@ dependencies = [
 [tool.project-paths]
 locations = "./location_polygons"
 data = "./data"
-amenities = "./amenity_info"
+amenities = "./data/amenity_info"

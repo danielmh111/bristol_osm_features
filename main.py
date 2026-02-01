@@ -13,6 +13,7 @@ import pandas as pd
 from typing import Iterable, Any
 from datetime import date
 from icecream import ic
+from functools import partial
 
 Json = dict | Iterable
 
@@ -168,7 +169,9 @@ def find_nearest_poi(
     lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]]
     lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
 
-    filtered_points_gdf = point_osm_data[point_osm_data["tags"].apply(matches_poi)]
+    _matches_poi = partial(matches_poi, poi=poi)
+
+    filtered_points_gdf = point_osm_data[point_osm_data["tags"].apply(_matches_poi)]
     joined_gdf = point_osm_data.sjoin_nearest(
         right=filtered_points_gdf, how="inner", distance_col="distance"
     )
@@ -220,6 +223,8 @@ def find_landuse_share(
     landuse_gdf["landuse_type"] = landuse_gdf["tags"].apply(lambda x: x.get("landuse"))
 
     joined_gdf = landuse_gdf.sjoin(lsoa_gdf, how="inner", predicate="intersects")
+
+    # joined_gdf.geometry.intersection()
 
     joined_gdf["intersection_area"] = joined_gdf.apply(
         lambda row: row.geometry.intersection(
@@ -407,7 +412,16 @@ def main():
         for buffer_distance in [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
     }
 
-    pprint(count_ammenities_features)
+    # pprint(count_ammenities_features)
+
+    nearest_poi = find_nearest_poi(
+        feature_frame=lsoa_gdf,
+        point_osm_data=osm_points_gdf,
+        poi="shop",
+        distance=0,
+    )
+
+    pprint(nearest_poi)
 
 
 if __name__ == "__main__":
