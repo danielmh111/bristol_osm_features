@@ -223,12 +223,19 @@ def find_landuse_share(
     lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
     lsoa_gdf["lsoa_area"] = lsoa_gdf.geometry.area
 
+    ic("lsoa gdf", lsoa_gdf.columns, lsoa_gdf["lsoa_area"], lsoa_gdf["geom_0"])
+
     landuse_gdf = polygon_osm_data[
         polygon_osm_data["tags"].apply(lambda x: "landuse" in x.keys())
     ].copy()
     landuse_gdf["landuse_type"] = landuse_gdf["tags"].apply(lambda x: x.get("landuse"))
 
+    ic("landuse_gdf", landuse_gdf, landuse_gdf.columns, landuse_gdf.geometry)
+
     joined_gdf = landuse_gdf.sjoin(lsoa_gdf, how="inner", predicate="intersects")
+
+    ic("joined_gdf columns", joined_gdf.columns)
+    ic("joined_gdf", joined_gdf)
 
     # joined_gdf.geometry.intersection()
 
@@ -346,7 +353,7 @@ def format_osm_geodataframes(
         geometry=[
             Polygon(
                 [
-                    (node.get("lat"), node.get("lon"))
+                    (node.get("lon"), node.get("lat"))
                     for node in element.get("geometry", {})
                 ]
             )
@@ -361,7 +368,7 @@ def format_osm_geodataframes(
         geometry=[
             LineString(
                 [
-                    (node.get("lat"), node.get("lon"))
+                    (node.get("lon"), node.get("lat"))
                     for node in element.get("geometry", {})
                 ]
             )
@@ -442,6 +449,14 @@ def main():
     )
 
     print(ratio_of_elements)
+
+    landuse_share = find_landuse_share(
+        feature_frame=lsoa_gdf,
+        polygon_osm_data=osm_polygons_gdf,
+        distance=0,
+    )
+
+    print(landuse_share)
 
 
 if __name__ == "__main__":
