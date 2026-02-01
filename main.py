@@ -176,7 +176,9 @@ def find_nearest_poi(
         right=filtered_points_gdf, how="inner", distance_col="distance"
     )
 
-    return joined_gdf["distance"]
+    agged_gdf = joined_gdf[["lsoa_code", "distance"]].groupby(["lsoa_code"]).min()
+
+    return agged_gdf["distance"]
 
 
 def matches_any_poi(tags: dict, pois: set) -> bool:
@@ -404,32 +406,32 @@ def main():
     # we probably want to think about the useful distances to use for each group and include this in the file so it becomes a full config
     # for now, im using all distances for each group
 
-    count_ammenities_features = {
-        f"{group_name}_{buffer_distance}": count_ammenities(
-            feature_frame=lsoa_gdf,
-            point_osm_data=osm_points_gdf,
-            ammenities=group,
-            distance=buffer_distance,
-        )
-        for group_name, group in amenity_groups.items()
+    # set lsoa_code as index for safe column assignment
+    lsoa_gdf = lsoa_gdf.set_index("lsoa_code")
+
+    for group_name, group in amenity_groups.items():
         for buffer_distance in [
             1000
-        ]  # [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
-    }
+        ]:  # [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
+            col_name = f"count_{group_name}_{buffer_distance}"
+            result = count_ammenities(
+                feature_frame=lsoa_gdf.reset_index(),
+                point_osm_data=osm_points_gdf,
+                ammenities=group,
+                distance=buffer_distance,
+            )
+            lsoa_gdf[col_name] = result.reindex(lsoa_gdf.index).fillna(0)
 
-    pprint(count_ammenities_features)
-
-    nearest_poi = find_nearest_poi(
-        feature_frame=lsoa_gdf,
+    nearest_shop = find_nearest_poi(
+        feature_frame=lsoa_gdf.reset_index(),
         point_osm_data=osm_points_gdf,
         poi="shop",
         distance=0,
     )
+    lsoa_gdf["nearest_shop_0"] = nearest_shop.reindex(lsoa_gdf.index)
 
-    pprint(nearest_poi)
-
-    ratio_of_elements = calculate_ratio_of_elements(
-        feature_frame=lsoa_gdf,
+    ratio_fastfood_dining = calculate_ratio_of_elements(
+        feature_frame=lsoa_gdf.reset_index(),
         point_osm_data=osm_points_gdf,
         element_groups=(
             amenity_groups.get("fast_food_takeaway", []),
@@ -437,24 +439,36 @@ def main():
         ),
         distance=1000,
     )
+    lsoa_gdf["ratio_fastfood_dining_1000"] = ratio_fastfood_dining.reindex(
+        lsoa_gdf.index
+    )
 
-    print(ratio_of_elements)
-
-    landuse_share = find_landuse_share(
-        feature_frame=lsoa_gdf,
+    landuse_shares = find_landuse_share(
+        feature_frame=lsoa_gdf.reset_index(),
         polygon_osm_data=osm_polygons_gdf,
         distance=0,
     )
+    for landuse_type in landuse_shares.columns:
+        col_name = f"landuse_{landuse_type}_0"
+        lsoa_gdf[col_name] = (
+            landuse_shares[landuse_type].reindex(lsoa_gdf.index).fillna(0)
+        )
 
-    print(landuse_share)
-
-    streetlit_path_percent = find_streetlit_path_percent(
-        feature_frame=lsoa_gdf,
+    lit_pct = find_streetlit_path_percent(
+        feature_frame=lsoa_gdf.reset_index(),
         line_osm_data=osm_lines_gdf,
         distance=0,
     )
+    lsoa_gdf["lit_path_pct_0"] = lit_pct.reindex(lsoa_gdf.index).fillna(0)
 
-    print(streetlit_path_percent)
+    # reset index to put lsoa_code back as a column
+    lsoa_gdf = lsoa_gdf.reset_index()
+
+    print(lsoa_gdf)
+
+    print(lsoa_gdf.describe())
+
+    print(lsoa_gdf.info())
 
 
 if __name__ == "__main__":
