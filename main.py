@@ -148,34 +148,127 @@ def count_ammenities(
     return gdf_agg["id"]
 
 
+def matches_poi(
+    tags: dict,
+    poi: str,
+) -> bool:
+    category_keys = {"amenity", "shop", "landuse", "highway"}
+    for key in category_keys:
+        if tags.get(key) == poi:
+            return True
+    return poi in tags.keys()
+
+
 def find_nearest_poi(
     feature_frame: GeoDataFrame,
-    point_osm_data: list,
+    point_osm_data: GeoDataFrame,
     poi: str,
     distance: int,
-) -> pd.Series: ...
+) -> pd.Series:
+    lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]]
+    lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
+
+    filtered_points_gdf = point_osm_data[point_osm_data["tags"].apply(matches_poi)]
+    joined_gdf = point_osm_data.sjoin_nearest(
+        right=filtered_points_gdf, how="inner", distance_col="distance"
+    )
+
+    return joined_gdf["distance"]
 
 
 def calculate_ratio_of_elements(
     feature_frame: GeoDataFrame,
-    point_osm_data: list,
+    point_osm_data: GeoDataFrame,
     elements: tuple[str, str],
     distance: int,
-) -> pd.Series: ...
+) -> pd.Series:
+    lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]]
+    lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
+
+    joined_gdf = point_osm_data.sjoin(lsoa_gdf, how="inner", predicate="within")
+
+    element_a, element_b = elements
+    joined_gdf["is_element_a"] = joined_gdf["tags"].apply(
+        lambda x: matches_poi(x, element_a)
+    )
+    joined_gdf["is_element_b"] = joined_gdf["tags"].apply(
+        lambda x: matches_poi(x, element_b)
+    )
+
+    counts = joined_gdf.groupby("lsoa_code").agg(
+        count_a=("is_element_a", "sum"),
+        count_b=("is_element_b", "sum"),
+    )
+
+    counts["ratio"] = counts["count_a"] / counts["count_b"].replace(0, float("nan"))
+
+    return counts["ratio"]
 
 
 def find_landuse_share(
     feature_frame: GeoDataFrame,
-    polygon_osm_data: list,
+    polygon_osm_data: GeoDataFrame,
     distance: int,
-) -> pd.Series: ...
+) -> pd.DataFrame:
+    lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]].copy()
+    lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
+    lsoa_gdf["lsoa_area"] = lsoa_gdf.geometry.area
+
+    landuse_gdf = polygon_osm_data[
+        polygon_osm_data["tags"].apply(lambda x: "landuse" in x.keys())
+    ].copy()
+    landuse_gdf["landuse_type"] = landuse_gdf["tags"].apply(lambda x: x.get("landuse"))
+
+    joined_gdf = landuse_gdf.sjoin(lsoa_gdf, how="inner", predicate="intersects")
+
+    joined_gdf["intersection_area"] = joined_gdf.apply(
+        lambda row: row.geometry.intersection(
+            lsoa_gdf.loc[
+                lsoa_gdf["lsoa_code"] == row["lsoa_code"], f"geom_{distance}"
+            ].iloc[0]
+        ).area,
+        axis=1,
+    )
+
+    landuse_areas = joined_gdf.groupby(["lsoa_code", "landuse_type"])[
+        "intersection_area"
+    ].sum()
+
+    lsoa_areas = lsoa_gdf.set_index("lsoa_code")["lsoa_area"]
+    landuse_shares = landuse_areas.unstack(fill_value=0).div(lsoa_areas, axis=0)
+
+    return landuse_shares
 
 
 def find_streetlit_path_percent(
     feature_frame: GeoDataFrame,
-    line_osm_data: list,
+    line_osm_data: GeoDataFrame,
     distance: int,
-) -> pd.Series: ...
+) -> pd.Series:
+    lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]].copy()
+    lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
+
+    joined_gdf = line_osm_data.sjoin(lsoa_gdf, how="inner", predicate="intersects")
+
+    joined_gdf["clipped_length"] = joined_gdf.apply(
+        lambda row: row.geometry.intersection(
+            lsoa_gdf.loc[
+                lsoa_gdf["lsoa_code"] == row["lsoa_code"], f"geom_{distance}"
+            ].iloc[0]
+        ).length,
+        axis=1,
+    )
+
+    joined_gdf["is_lit"] = joined_gdf["tags"].apply(lambda x: x.get("lit") == "yes")
+
+    total_length = joined_gdf.groupby("lsoa_code")["clipped_length"].sum()
+    lit_length = (
+        joined_gdf[joined_gdf["is_lit"]].groupby("lsoa_code")["clipped_length"].sum()
+    )
+
+    lit_percent = (lit_length / total_length).fillna(0)
+
+    return lit_percent
 
 
 def calculate_poi_diversity(
@@ -187,9 +280,17 @@ def calculate_poi_diversity(
 
 def find_total_pois(
     feature_frame: GeoDataFrame,
-    point_osm_data: list,
+    point_osm_data: GeoDataFrame,
     distance: int,
-) -> pd.Series: ...
+) -> pd.Series:
+    lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]].copy()
+    lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
+
+    joined_gdf = point_osm_data.sjoin(lsoa_gdf, how="inner", predicate="within")
+
+    poi_counts = joined_gdf.groupby("lsoa_code").size()
+
+    return poi_counts
 
 
 def format_osm_geodataframes(
