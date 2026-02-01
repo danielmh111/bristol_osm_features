@@ -172,7 +172,7 @@ def find_nearest_poi(
     _matches_poi = partial(matches_poi, poi=poi)
 
     filtered_points_gdf = point_osm_data[point_osm_data["tags"].apply(_matches_poi)]
-    joined_gdf = point_osm_data.sjoin_nearest(
+    joined_gdf = lsoa_gdf.sjoin_nearest(
         right=filtered_points_gdf, how="inner", distance_col="distance"
     )
 
@@ -447,6 +447,14 @@ def main():
     )
 
     print(landuse_share)
+
+    streetlit_path_percent = find_streetlit_path_percent(
+        feature_frame=lsoa_gdf,
+        line_osm_data=osm_lines_gdf,
+        distance=0,
+    )
+
+    print(streetlit_path_percent)
 
 
 if __name__ == "__main__":
