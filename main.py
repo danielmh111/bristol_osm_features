@@ -179,28 +179,34 @@ def find_nearest_poi(
     return joined_gdf["distance"]
 
 
+def matches_any_poi(tags: dict, pois: set) -> bool:
+    category_keys = {"amenity", "shop", "landuse", "highway"}
+    for key in category_keys:
+        if tags.get(key) in pois:
+            return True
+    return not pois.isdisjoint(tags.keys())
+
+
 def calculate_ratio_of_elements(
     feature_frame: GeoDataFrame,
     point_osm_data: GeoDataFrame,
-    elements: tuple[str, str],
+    element_groups: tuple[Iterable, Iterable],
     distance: int,
 ) -> pd.Series:
+    _matches_any_group_a = partial(matches_any_poi, pois=set(element_groups[0]))
+    _matches_any_group_b = partial(matches_any_poi, pois=set(element_groups[1]))
+
     lsoa_gdf = feature_frame[["lsoa_code", f"geom_{distance}"]]
     lsoa_gdf.set_geometry(f"geom_{distance}", inplace=True)
 
     joined_gdf = point_osm_data.sjoin(lsoa_gdf, how="inner", predicate="within")
 
-    element_a, element_b = elements
-    joined_gdf["is_element_a"] = joined_gdf["tags"].apply(
-        lambda x: matches_poi(x, element_a)
-    )
-    joined_gdf["is_element_b"] = joined_gdf["tags"].apply(
-        lambda x: matches_poi(x, element_b)
-    )
+    joined_gdf["is_group_a"] = joined_gdf["tags"].apply(_matches_any_group_a)
+    joined_gdf["is_group_b"] = joined_gdf["tags"].apply(_matches_any_group_b)
 
     counts = joined_gdf.groupby("lsoa_code").agg(
-        count_a=("is_element_a", "sum"),
-        count_b=("is_element_b", "sum"),
+        count_a=("is_group_a", "sum"),
+        count_b=("is_group_b", "sum"),
     )
 
     counts["ratio"] = counts["count_a"] / counts["count_b"].replace(0, float("nan"))
@@ -409,10 +415,12 @@ def main():
             distance=buffer_distance,
         )
         for group_name, group in amenity_groups.items()
-        for buffer_distance in [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
+        for buffer_distance in [
+            1000
+        ]  # [0, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000]
     }
 
-    # pprint(count_ammenities_features)
+    pprint(count_ammenities_features)
 
     nearest_poi = find_nearest_poi(
         feature_frame=lsoa_gdf,
@@ -422,6 +430,18 @@ def main():
     )
 
     pprint(nearest_poi)
+
+    ratio_of_elements = calculate_ratio_of_elements(
+        feature_frame=lsoa_gdf,
+        point_osm_data=osm_points_gdf,
+        element_groups=(
+            amenity_groups.get("fast_food_takeaway", []),
+            amenity_groups.get("food_dining", []),
+        ),
+        distance=1000,
+    )
+
+    print(ratio_of_elements)
 
 
 if __name__ == "__main__":
